@@ -45,6 +45,8 @@ jobrunnr-example/
 ### 1️⃣ Run with Docker
 
 ```bash
+mvn clean install
+
 docker-compose up --build
 ```
 

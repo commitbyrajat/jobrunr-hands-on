@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: job-engine-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: job-engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - job-engine-db:/var/lib/postgresql/data
+
+  enquer:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: enquer-service
+    working_dir: /app/enquer
+    volumes:
+      - ./enquer:/app/enquer  # Mount enquer code
+      - ~/.m2:/root/.m2       # Share Maven cache
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    command: mvn spring-boot:run
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+
+  processor1:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: processor1-service
+    working_dir: /app/processor
+    volumes:
+      - ./processor:/app/processor
+      - ~/.m2:/root/.m2
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    command: mvn spring-boot:run
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8080"    # 8080 inside container mapped to 8081 outside
+      - "8001:8000"    # 8000 inside container mapped to 8001 outside
+
+  processor2:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: processor2-service
+    working_dir: /app/processor
+    volumes:
+      - ./processor:/app/processor
+      - ~/.m2:/root/.m2
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    command: mvn spring-boot:run
+    depends_on:
+      - postgres
+    ports:
+      - "8082:8080"    # 8080 inside container mapped to 8082 outside
+      - "8002:8000"    # 8000 inside container mapped to 8002 outside
+
+volumes:
+  job-engine-db:

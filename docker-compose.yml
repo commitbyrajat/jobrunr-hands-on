@@ -10,59 +10,136 @@ services:
       - "5432:5432"
     volumes:
       - job-engine-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   enquer:
-    image: maven:3.9-eclipse-temurin-21
+    image: jobrunnr-example:v1
     container_name: enquer-service
-    working_dir: /app/enquer
-    volumes:
-      - ./enquer:/app/enquer  # Mount enquer code
-      - ~/.m2:/root/.m2       # Share Maven cache
     environment:
+      # Service type
+      SERVICE_TYPE: enquer
+
+      # Spring Boot configuration
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-    command: mvn spring-boot:run
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SERVER_PORT: 8080
+      LOG_LEVEL_APP: INFO
+
+      # Enqueuer JobRunr Configuration
+      ORG_JOBRUNR_JOB_SCHEDULER_ENABLED: "true"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_ENABLED: "false"
+      ORG_JOBRUNR_DASHBOARD_ENABLED: "false"
+      ORG_JOBRUNR_DATABASE_TABLE_PREFIX: "jobrunr_"
+      ORG_JOBRUNR_JOBS_DEFAULT_NUMBER_OF_RETRIES: "3"
+      ORG_JOBRUNR_JOBS_RETRY_BACK_OFF_TIME_SEED: "15"
+      ORG_JOBRUNR_JOBS_SCHEDULE_IN_SECONDS: "5"
+      ORG_JOBRUNR_BATCH_JOB_SIZE: "100"
+      ORG_JOBRUNR_BATCH_SIZE: "100"
+      ORG_JOBRUNR_SCHEDULED_JOBS_REQUEST_SIZE: "1000"
+
+      # JVM options
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/enqueuer_heap_dump.hprof"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
+    restart: unless-stopped
+    volumes:
+      - enquer-logs:/app/logs
 
   processor1:
-    image: maven:3.9-eclipse-temurin-21
+    image: jobrunnr-example:v1
     container_name: processor1-service
-    working_dir: /app/processor
-    volumes:
-      - ./processor:/app/processor
-      - ~/.m2:/root/.m2
     environment:
+      # Service type
+      SERVICE_TYPE: processor
+
+      # Spring Boot configuration
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-    command: mvn spring-boot:run
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SERVER_PORT: 8080
+      LOG_LEVEL_APP: INFO
+
+      # Processor JobRunr Configuration
+      ORG_JOBRUNR_JOB_SCHEDULER_ENABLED: "false"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_ENABLED: "true"
+      ORG_JOBRUNR_DASHBOARD_ENABLED: "true"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_NAME: "processor1"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_WORKER_COUNT: "4"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_POLL_INTERVAL_IN_SECONDS: "5"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_SELECT_COUNT: "100"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_DELETE_SUCCEEDED_JOBS_AFTER: "336"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_PERMANENTLY_DELETE_DELETED_JOBS_AFTER: "672"
+      ORG_JOBRUNR_DASHBOARD_PORT: "8000"
+      ORG_JOBRUNR_DASHBOARD_USERNAME: "admin"
+      ORG_JOBRUNR_DASHBOARD_PASSWORD: "${JOBRUNR_DASHBOARD_PASSWORD:-admin}"
+      ORG_JOBRUNR_DATABASE_TABLE_PREFIX: "jobrunr_"
+
+      # JVM options
+      JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/processor1_heap_dump.hprof"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
-      - "8081:8080"    # 8080 inside container mapped to 8081 outside
-      - "8001:8000"    # 8000 inside container mapped to 8001 outside
+      - "8081:8080"    # Web API port
+      - "8001:8000"    # JobRunr dashboard port
+    restart: unless-stopped
+    volumes:
+      - processor1-logs:/app/logs
 
   processor2:
-    image: maven:3.9-eclipse-temurin-21
+    image: jobrunnr-example:v1
     container_name: processor2-service
-    working_dir: /app/processor
-    volumes:
-      - ./processor:/app/processor
-      - ~/.m2:/root/.m2
     environment:
+      # Service type
+      SERVICE_TYPE: processor
+
+      # Spring Boot configuration
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/job-engine
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-    command: mvn spring-boot:run
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SERVER_PORT: 8080
+      LOG_LEVEL_APP: INFO
+
+      # Processor JobRunr Configuration
+      ORG_JOBRUNR_JOB_SCHEDULER_ENABLED: "false"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_ENABLED: "true"
+      ORG_JOBRUNR_DASHBOARD_ENABLED: "true"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_NAME: "processor2"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_WORKER_COUNT: "4"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_POLL_INTERVAL_IN_SECONDS: "5"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_SELECT_COUNT: "100"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_DELETE_SUCCEEDED_JOBS_AFTER: "336"
+      ORG_JOBRUNR_BACKGROUND_JOB_SERVER_PERMANENTLY_DELETE_DELETED_JOBS_AFTER: "672"
+      ORG_JOBRUNR_DASHBOARD_PORT: "8000"
+      ORG_JOBRUNR_DASHBOARD_USERNAME: "admin"
+      ORG_JOBRUNR_DASHBOARD_PASSWORD: "${JOBRUNR_DASHBOARD_PASSWORD:-admin}"
+      ORG_JOBRUNR_DATABASE_TABLE_PREFIX: "jobrunr_"
+
+      # JVM options
+      JAVA_OPTS: "-Xms512m -Xmx1g -XX:+UseG1GC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/processor2_heap_dump.hprof"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
-      - "8082:8080"    # 8080 inside container mapped to 8082 outside
-      - "8002:8000"    # 8000 inside container mapped to 8002 outside
+      - "8082:8080"    # Web API port
+      - "8002:8000"    # JobRunr dashboard port
+    restart: unless-stopped
+    volumes:
+      - processor2-logs:/app/logs
 
 volumes:
   job-engine-db:
+  enquer-logs:
+  processor1-logs:
+  processor2-logs:
